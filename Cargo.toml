@@ -1,0 +1,35 @@
+[package]
+name = "fits-viewer"
+version = "1.0.0"
+edition = "2024"
+description = "Windows Explorer thumbnails, preview pane and image viewer support for FITS astrophotography files"
+repository = "https://github.com/Sam-de-Ham/fits-viewer"
+license-file = "LICENSE"
+publish = false
+
+[lib]
+# cdylib is the shell extension; rlib lets the tests and examples use the decoder directly.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+windows-core = "0.62"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Imaging",
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Ole",
+    "Win32_System_Registry",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

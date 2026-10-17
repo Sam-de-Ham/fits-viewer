@@ -62,6 +62,18 @@ fn box_averages_down_to_max_side() {
 }
 
 #[test]
+fn keeps_full_resolution_samples_for_statistics() {
+    // A 0/100 checkerboard averages to a flat 50, but the stretch must see the real spread,
+    // or thumbnails get a far harsher stretch than the full-size view.
+    let pixels: Vec<u8> = (0..64 * 64).map(|i| if (i % 64 + i / 64) % 2 == 0 { 0 } else { 100 }).collect();
+    let img = load(&image("8", 64, 64, &[], &pixels), 1);
+    assert_eq!(img.data, [50.0]);
+    let samples = &img.samples[0];
+    assert!(samples.contains(&0.0) && samples.contains(&100.0));
+    assert!(!samples.contains(&50.0));
+}
+
+#[test]
 fn ignores_non_finite_samples() {
     let data = be_f32([1.0, f32::NAN, 3.0, f32::INFINITY]);
     let img = load(&image("-32", 2, 2, &[], &data), 1);
@@ -105,7 +117,7 @@ fn rejects_invalid_files() {
 fn stretch_lifts_background_to_target() {
     // Dim linear "sky": a low background with a little noise.
     let pixels: Vec<f32> = noise(10_000).iter().map(|n| 0.02 + 0.005 * n).collect();
-    let img = fits::Image { width: 100, height: 100, channels: 1, data: pixels };
+    let img = fits::Image { width: 100, height: 100, channels: 1, samples: vec![pixels.clone()], data: pixels };
     let bgra = stretch::to_bgra(&img);
 
     let mut values: Vec<u8> = bgra.chunks(4).map(|px| px[0]).collect();

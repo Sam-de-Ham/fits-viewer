@@ -9,6 +9,8 @@ const BLOCK_LEN: usize = 2880;
 const CARD_LEN: usize = 80;
 /// Rejects corrupt headers before they turn into huge allocations.
 const MAX_SIDE: usize = 1 << 20;
+/// Roughly how many full-resolution pixels are kept for statistics.
+const MAX_SAMPLES: usize = 1 << 20;
 
 /// The header keywords needed to decode and describe an image.
 #[derive(Debug, Default)]
@@ -38,6 +40,9 @@ pub struct Image {
     pub height: usize,
     pub channels: usize,
     pub data: Vec<f32>,
+    /// Per channel, a spread-out subset of the original full-resolution pixel values.
+    /// Downsampling averages noise away, so statistics must come from these instead.
+    pub samples: Vec<Vec<f32>>,
 }
 
 fn invalid(msg: &str) -> io::Error {
@@ -146,6 +151,10 @@ pub fn load(mut reader: impl Read, max_side: usize) -> io::Result<(Header, Image
     let out_col: Vec<usize> = (0..row.len()).map(|x| x / bin / factor).collect();
     let used_rows = binned_h * bin;
     let (scale, zero) = (header.bscale as f32, header.bzero as f32);
+    // Every `step`-th source pixel is also kept unaveraged, for statistics. An odd step walks
+    // across all Bayer positions.
+    let step = (header.width * header.height).div_ceil(MAX_SAMPLES) | 1;
+    let mut samples = vec![Vec::new(); channels];
 
     for plane in 0..header.planes {
         for y in 0..header.height {
@@ -154,11 +163,16 @@ pub fn load(mut reader: impl Read, max_side: usize) -> io::Result<(Header, Image
                 continue;
             }
             decode_row(&raw, header.bitpix, &mut row);
+            let first_sample = (step - (y * header.width) % step) % step;
             for (x, &v) in row.iter().enumerate().filter(|(_, v)| v.is_finite()) {
                 let channel = header.bayer.map_or(plane, |cell| cell[(y % 2) * 2 + x % 2]);
+                let value = v * scale + zero;
                 let i = out_col[x] * channels + channel;
-                sum[i] += v * scale + zero;
+                sum[i] += value;
                 count[i] += 1;
+                if x % step == first_sample {
+                    samples[channel].push(value);
+                }
             }
 
             let out_y = y / bin / factor;
@@ -174,7 +188,7 @@ pub fn load(mut reader: impl Read, max_side: usize) -> io::Result<(Header, Image
             }
         }
     }
-    Ok((header, Image { width: out_w, height: out_h, channels, data }))
+    Ok((header, Image { width: out_w, height: out_h, channels, data, samples }))
 }
 
 /// Converts big-endian samples to f32, filling `out` (which may be shorter than the row).

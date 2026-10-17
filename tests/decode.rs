@@ -124,8 +124,11 @@ fn encodes_bmp() {
     assert_eq!(u16::from_le_bytes([bmp[28], bmp[29]]), 8);
     assert_eq!(bmp.len(), 54 + 1024 + 4 * 2); // 3-pixel rows padded to 4 bytes
 
-    let color = bitmap::Bitmap { width: 3, height: 2, mono: false, bgra: vec![7; 24] };
+    // Top row 10, bottom row 20; BMP stores the bottom row first.
+    let color = bitmap::Bitmap { width: 3, height: 2, mono: false, bgra: [[10; 12], [20; 12]].concat() };
     let bmp = color.to_bmp();
     assert_eq!(u16::from_le_bytes([bmp[28], bmp[29]]), 24);
     assert_eq!(bmp.len(), 54 + 12 * 2);
+    assert_eq!(&bmp[54..63], &[20; 9]);
+    assert_eq!(&bmp[66..75], &[10; 9]);
 }

@@ -39,14 +39,15 @@ impl Bitmap {
         bmp.extend((offset as u32).to_le_bytes());
         bmp.extend(40u32.to_le_bytes()); // BITMAPINFOHEADER size
         bmp.extend((self.width as i32).to_le_bytes());
-        bmp.extend((-(self.height as i32)).to_le_bytes()); // negative height: rows stored top-down
+        bmp.extend((self.height as i32).to_le_bytes());
         bmp.extend(1u16.to_le_bytes());
         bmp.extend((bits as u16).to_le_bytes());
         bmp.extend([0u8; 24]); // no compression, default resolution and palette size
         if self.mono {
             bmp.extend((0..=255u8).flat_map(|i| [i, i, i, 0]));
         }
-        for row in self.bgra.chunks_exact(self.width * 4) {
+        // Bottom-up row order: the classic layout, supported by every BMP reader.
+        for row in self.bgra.chunks_exact(self.width * 4).rev() {
             let start = bmp.len();
             for &[b, g, r, _] in row.as_chunks::<4>().0 {
                 if self.mono {

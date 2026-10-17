@@ -29,6 +29,7 @@ if (Test-Path $target) {
     Rename-Item $target "fits_viewer.$([DateTime]::Now.Ticks).old.dll"
 }
 Copy-Item $source $target
+Unblock-File $target # drop the "downloaded from the internet" mark from release zips
 
 $regsvr = Start-Process regsvr32 -ArgumentList "/s `"$target`"" -Wait -PassThru
 if ($regsvr.ExitCode -ne 0) { throw "Registration failed (regsvr32 exit code $($regsvr.ExitCode))" }

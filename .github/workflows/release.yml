@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write # create the release
+  id-token: write # sign the build provenance attestation
+  attestations: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      PACKAGE: fits-viewer-${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Rust
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory $env:PACKAGE | Out-Null
+          Copy-Item target/release/fits_viewer.dll, install.ps1, uninstall.ps1, LICENSE $env:PACKAGE
+          Compress-Archive $env:PACKAGE "$env:PACKAGE.zip"
+          $hash = (Get-FileHash "$env:PACKAGE.zip" -Algorithm SHA256).Hash.ToLower()
+          "$hash  $env:PACKAGE.zip" | Out-File SHA256SUMS.txt -Encoding ascii
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: ${{ env.PACKAGE }}.zip
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $notes = @"
+          Download ``$env:PACKAGE.zip``, extract it and run ``install.ps1``. See the [README](https://github.com/${{ github.repository }}#install) for details.
+
+          The zip is built from this tag by GitHub Actions. To verify it was built from this repository:
+
+          ``````
+          gh attestation verify $env:PACKAGE.zip --repo ${{ github.repository }}
+          ``````
+          "@
+          gh release create "${{ github.ref_name }}" "$env:PACKAGE.zip" SHA256SUMS.txt --title "FITS Viewer ${{ github.ref_name }}" --notes $notes

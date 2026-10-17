@@ -4,7 +4,7 @@ version = "1.0.0"
 edition = "2024"
 description = "Windows Explorer thumbnails, preview pane and image viewer support for FITS astrophotography files"
 repository = "https://github.com/Sam-de-Ham/fits-viewer"
-license-file = "LICENSE"
+license = "MIT"
 publish = false
 
 [lib]

@@ -84,10 +84,12 @@ fn register_window_class() {
     static REGISTER: Once = Once::new();
     REGISTER.call_once(|| unsafe {
         let class = WNDCLASSW {
+            style: CS_HREDRAW | CS_VREDRAW,
             lpfnWndProc: Some(window_proc),
             hInstance: module(),
             lpszClassName: WINDOW_CLASS,
             hCursor: LoadCursorW(None, IDC_ARROW).unwrap_or_default(),
+            hbrBackground: HBRUSH(GetStockObject(BLACK_BRUSH).0),
             ..Default::default()
         };
         RegisterClassW(&class);
@@ -105,15 +107,31 @@ unsafe extern "system" fn window_proc(window: HWND, message: u32, wparam: WPARAM
     }
 }
 
+/// Paints into an off-screen bitmap first, so resizing the pane never shows a partial frame.
 unsafe fn paint(window: HWND) {
     unsafe {
         let mut ps = PAINTSTRUCT::default();
         let dc = BeginPaint(window, &mut ps);
         let mut client = RECT::default();
         _ = GetClientRect(window, &mut client);
-        FillRect(dc, &client, HBRUSH(GetStockObject(BLACK_BRUSH).0));
 
-        if let Some(content) = (GetWindowLongPtrW(window, GWLP_USERDATA) as *const Content).as_ref() {
+        let buffer_dc = CreateCompatibleDC(Some(dc));
+        let buffer = CreateCompatibleBitmap(dc, client.right, client.bottom);
+        let previous = SelectObject(buffer_dc, buffer.into());
+        let content = (GetWindowLongPtrW(window, GWLP_USERDATA) as *const Content).as_ref();
+        draw(buffer_dc, client, content);
+        _ = BitBlt(dc, 0, 0, client.right, client.bottom, Some(buffer_dc), 0, 0, SRCCOPY);
+        SelectObject(buffer_dc, previous);
+        _ = DeleteObject(buffer.into());
+        _ = DeleteDC(buffer_dc);
+        _ = EndPaint(window, &ps);
+    }
+}
+
+unsafe fn draw(dc: HDC, client: RECT, content: Option<&Content>) {
+    unsafe {
+        FillRect(dc, &client, HBRUSH(GetStockObject(BLACK_BRUSH).0));
+        if let Some(content) = content {
             let bitmap = &content.bitmap;
             let (w, h) = (bitmap.width as i32, bitmap.height as i32);
             let (area_w, area_h) = (client.right, (client.bottom - CAPTION_HEIGHT).max(1));
@@ -134,7 +152,6 @@ unsafe fn paint(window: HWND) {
             let format = DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS;
             DrawTextW(dc, &mut content.caption.clone(), &mut text_rect, format);
         }
-        _ = EndPaint(window, &ps);
     }
 }
 

@@ -34,7 +34,8 @@ jobs:
           Copy-Item target/release/fits_viewer.dll, install.ps1, uninstall.ps1, LICENSE $env:PACKAGE
           Compress-Archive $env:PACKAGE "$env:PACKAGE.zip"
           $hash = (Get-FileHash "$env:PACKAGE.zip" -Algorithm SHA256).Hash.ToLower()
-          "$hash  $env:PACKAGE.zip" | Out-File SHA256SUMS.txt -Encoding ascii
+          # LF line ending, so `sha256sum -c` works on any system.
+          [IO.File]::WriteAllText("$PWD/SHA256SUMS.txt", "$hash  $env:PACKAGE.zip`n")
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@v4

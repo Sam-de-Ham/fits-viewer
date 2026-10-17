@@ -31,7 +31,10 @@ struct Content {
     caption: Vec<u16>,
 }
 
-#[implement(IPreviewHandler, IInitializeWithStream, IObjectWithSite, IOleWindow)]
+// Not agile: the handler owns a window, so COM must call it on the thread that pumps that
+// window's messages. An agile object would be called on RPC worker threads in prevhost.exe,
+// leaving the window unpainted.
+#[implement(IPreviewHandler, IInitializeWithStream, IObjectWithSite, IOleWindow, Agile = false)]
 #[derive(Default)]
 pub struct PreviewHandler {
     stream: RefCell<Option<IStream>>,

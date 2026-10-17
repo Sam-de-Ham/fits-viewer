@@ -12,7 +12,8 @@ use windows::Win32::UI::Shell::PropertiesSystem::{IInitializeWithStream, IInitia
 use windows::Win32::UI::Shell::{IThumbnailProvider, IThumbnailProvider_Impl, WTS_ALPHATYPE, WTSAT_RGB};
 use windows::core::*;
 
-#[implement(IInitializeWithStream, IThumbnailProvider)]
+// Not agile: the state is single-threaded (`RefCell`), so calls must stay on one apartment.
+#[implement(IInitializeWithStream, IThumbnailProvider, Agile = false)]
 #[derive(Default)]
 pub struct ThumbnailProvider {
     stream: RefCell<Option<IStream>>,

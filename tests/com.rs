@@ -106,3 +106,18 @@ fn preview_handler_creates_child_window() {
         DestroyWindow(host).unwrap();
     }
 }
+
+#[test]
+fn shell_handlers_are_not_agile() {
+    // Agile objects get called on RPC worker threads out of process (prevhost.exe, dllhost.exe),
+    // where the preview window would never receive messages and never paint.
+    const IID_IAGILEOBJECT: GUID = GUID::from_u128(0x94ea2b94_e9cc_49e0_c0ff_ee64ca8f5b90);
+    const IID_IMARSHAL: GUID = GUID::from_u128(0x00000003_0000_0000_c000_000000000046);
+    for clsid in [CLSID_THUMBNAIL_PROVIDER, CLSID_PREVIEW_HANDLER] {
+        let object: IUnknown = create(clsid);
+        for iid in [IID_IAGILEOBJECT, IID_IMARSHAL] {
+            let mut out = std::ptr::null_mut();
+            assert!(unsafe { object.query(&iid, &mut out) }.is_err(), "{clsid:?} must not expose {iid:?}");
+        }
+    }
+}
